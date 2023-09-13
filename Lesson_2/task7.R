@@ -9,13 +9,24 @@ mean_result <- sum(result)/25
 var_result <- sum((result - mean_result)**2 / 24)
 p2 <- 8/25
 
-k3 = 3
+# P(X = k) = C(n,k) * p^k * (1-p)^n-k
+# C(n,k) = n! / (k! * (n-k)!) 
 n = 4
-C3 <- factorial(n) / (factorial(k3) * factorial(n-k3))
-p3 <- C3 * p2^k3 * (1-p2)^(n-k3)
-
-k4 = 4
-C4 <- factorial(n) / (factorial(k4) * factorial(n-k4))
-p4 <- C4 * p2^k4 * (1-p2)^(n-k4)
-
-print(p3+p4)
+k = 2
+c <- factorial(n) / (factorial(k) * factorial(n-k))
+# 0.32 = 6 * p^k * (1-p)^(n-k)
+# 0.32 = 6 * p^2 * (1-p)^(2)
+# 0.32 = 6 * p^2 * (1-p)*(1-p)
+# 0.32 = 6p^2 * (1 - 2p + p^2)
+# 0.32 = 6p^2 - 12p^3 + 6p^4
+# 0 = 6p^4 - 12p^3 + 6p^2 - 0.32
+z <- c(-0.32, 0, 6, -12, 6)
+prob <- polyroot(z)
+p <- 0.638
+rez = 0
+for (i in 3:4){
+  C <- factorial(n) / (factorial(i) * factorial(n-i))
+  pi <- C * p^i * (1-p)^(n-i)
+  rez = rez + pi
+}
+print(rez)
