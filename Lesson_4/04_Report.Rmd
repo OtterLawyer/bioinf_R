@@ -1,0 +1,336 @@
+---
+title: "Наш первый отчёт"
+author: "Aleksei Zamalutdinov"
+date: "2023-01-16"
+bibliography: packages.bib
+output: 
+  html_document:
+    latex_engine : xelatex
+    df_print: default
+    highlight: zenburn
+    toc: TRUE
+    toc_depth: 3
+mainfont : NanumGothic    
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# R Markdown
+
+**Это R** Markdown документ. Markdown - это простой язык разметки для создания *HTML*, PDF, и MS Word документов. Подробнее об использовании R Markdown <http://rmarkdown.rstudio.com>.
+
+Когда вы нажимаете кнопку **Knit** будет создан документ, включающий как текстовые разделы так и результат исполнения чанков с кодом внутри документа.
+
+Здесь мы можем проводить наши анлизы как обычно, но здесь их структурировать проще
+
+## EDA (Exploratory data analysis)
+
+Мы научились считать разные статистики, корреляции, делать тесты и проверять гипотезы. Но до сих пор мы работали с более или менее подготовленными данными. Здесь мы обсудим как работать с новыми сырыми данными.
+
+Прежде всего мы должны взглянуть на наши данные, определить какие переменные у нас, сколько наблюдений, как взаимосвязаны переменные, есть ли пропуски и выбросы и тд и тп. Всё это называется EDA или разведочный анализ.
+
+Основные цели:
+
+1) Понимание структуры данных (сколько, какой тип, дубликаты, пропущенные и тп)
+
+2) Выявление аномалий и выбросов
+
+3) Определение связей между переменными
+
+4) Подготовка данных для дальнейшего анализа
+
+Подробнее можно почитать тут
+<https://habr.com/ru/companies/otus/articles/752434/>
+
+Мы же перейдём к примеру. Поработаем с датасетом о ценах на страховку
+
+```{r libraries}
+library(dplyr)
+library(ggplot2)
+library(knitr)
+main_dir <- dirname(rstudioapi::getSourceEditorContext()$path) 
+setwd(main_dir)
+```
+
+### Обзор данных
+
+```{r data import}
+insurance <- read.csv("insurance.csv", sep=";")
+str(insurance)
+```
+
+Какие переменные у нас есть: 
+
+age: возраст 
+
+sex: пол 
+
+bmi: индекс массы тела, рассчитывается как (kg / рост в метрах \^ 2), в идеале от 18.5 до
+24.9 
+
+children: количество детей 
+
+smoker: курение 
+
+region: регион США
+
+charges: цена
+
+Начнём с проверки наших данных. Что вы думаете?
+
+На мой взгляд странно, что children являются типом character. Используем ещё одну базовую функцию для беглого взгляда на данные
+
+```{r}
+summary(insurance)
+```
+
+Видим, что числовые колонки тоже не без проблем.
+
+### Работа с пропущенными значениями
+
+Начнём с того, что проверим сколько у нас пропущенных значений. В наших данных `r sum(is.na(insurance))` пропущенных значений
+
+Есть несколько вариантов того, что мы можем сделать с ними: 
+
+1) Просто выкинуть эти наблюдения 
+
+2) Заполнить средним значением (ну или как-то более сложно) 
+
+3) Заполнить нулями
+
+```{r}
+sum(is.na(insurance[is.na(insurance)] <- 0))
+```
+
+4)  Оставить как есть
+
+У нас довольно много наблюдений, поэтому лучше выкинуть пропущенное. Можно сделать это с помощью dplyr
+
+```{r}
+#insurance_without_na <- 
+#summary(insurance_without_na)
+```
+
+Или можно сделать так одной командой
+
+```{r}
+insurance_without_na <- na.omit(insurance)
+summary(insurance_without_na)
+```
+
+### Замена опечаток
+
+Посмотрим на колонку children. Сначала взглянем на все уникальные значения из неё
+
+```{r}
+sort(unique(insurance_without_na$children))
+```
+
+Сразу видим два типа проблем: текстовые значения и возможные выбросы. Выбросы похоже на случайное нажатие клавиши дважды, но для надёжности лучше выбросим их. Уберем снова используя dplyr
+
+```{r}
+insurance_without_na_child <- filter(insurance_without_na, children!="22" & children!="33")
+str(filter(insurance_without_na, !(children %in% c("22","33"))))
+```
+
+Вторую проблему можно решить конвертацией текста в его значение. Используем case_when для этого
+
+```{r}
+insurance_without_na_child_fix <- insurance_without_na_child %>% mutate(children = case_when(
+                                         children == "Zero" ~ 0,
+                                         children == "One" ~ 1,
+                                         children == "Two" ~ 2,
+                                         children == "Three" ~ 3,
+                                         TRUE ~ as.double(children)))
+summary(insurance_without_na_child_fix)
+```
+
+Стало лучше)
+
+### Категориальные величины
+
+С категориальными величинами удобнее работать, когда R знает что они такие) Конвертируем их в фактор
+
+```{r}
+insurance_without_na_child_fix$sex <- as.factor(insurance_without_na_child_fix$sex)
+insurance_without_na_child_fix$smoker <- as.factor(insurance_without_na_child_fix$smoker)
+insurance_without_na_child_fix$region <- as.factor(insurance_without_na_child_fix$region)
+summary(insurance_without_na_child_fix)
+```
+
+Теперь мы видим распределение между уровнями наших категориальных переменных. В некоторых случаях значения те же, отличаются только заглавной буквой. Решим проблему с помощью casefold()
+
+```{r}
+insurance_without_na_child_fix_s <- insurance_without_na_child_fix %>% mutate(sex=casefold(sex, upper = F))
+insurance_without_na_child_fix_s$sex <- as.factor(insurance_without_na_child_fix_s$sex)
+summary(insurance_without_na_child_fix_s)
+```
+
+Отлично, сделаем то же самое с колонкой smoker
+
+```{r}
+insurance_without_na_child_fix_s_s <- insurance_without_na_child_fix_s %>% mutate(smoker=casefold(smoker, upper = F))
+insurance_without_na_child_fix_s_s$smoker <- as.factor(insurance_without_na_child_fix_s_s$smoker)
+summary(insurance_without_na_child_fix_s_s)
+```
+
+Остались ещё небольшие правки. Сделаем их с mutate и if_else()
+
+```{r}
+insurance_without_na_child_fix_s_s <-insurance_without_na_child_fix_s_s %>% 
+  mutate(smoker = if_else(smoker=="false","no",as.character(smoker))) %>% 
+  mutate(smoker = if_else(smoker=="true","yes",as.character(smoker)))
+insurance_without_na_child_fix_s_s$smoker <- as.factor(insurance_without_na_child_fix_s_s$smoker)
+summary(insurance_without_na_child_fix_s_s)
+```
+
+Последняя проблема с колонкой region. Похоже на опечатку. С помощью unique() посмотрим на все значения
+
+```{r}
+sort(unique(insurance_without_na_child_fix_s_s$region))
+```
+
+Исправим ошибки с помощью case_when()
+
+```{r}
+insurance_without_na_child_fix_s_s_r <- insurance_without_na_child_fix_s_s %>% 
+  mutate(region = case_when(region == "norhwest" ~ "northwest",
+                            region == "nothwest" ~ "northwest",
+                            region == "sothwest" ~ "southwest",
+                            region == "sutheast" ~ "southeast",
+                            T ~ as.character(region)))
+insurance_without_na_child_fix_s_s_r$region <- as.factor(insurance_without_na_child_fix_s_s_r$region)
+summary(insurance_without_na_child_fix_s_s_r)
+```
+
+### Выбросы
+
+Проверим распределения численных величин. Странно, что максимальное значение так велико
+
+```{r}
+ggplot(insurance_without_na_child_fix_s_s_r, aes(x=age))+
+  geom_density()
+```
+
+Кажется, что с большинством наблюдений всё в порядке, но это не так очевидно. Попробуем другой график
+
+```{r plot small, echo=F, fig.align="center", fig.height=3, fig.width=3}
+ggplot(insurance_without_na_child_fix_s_s_r, aes(x=age, y=bmi))+
+  geom_point()
+```
+
+Так стало заметно, что у нас есть несколько очевидных выбросов, давайте отфильтруем их
+
+```{r}
+filter(insurance_without_na_child_fix_s_s_r, bmi>100 | age > 75 )
+```
+
+Похоже на опечатку, но лучше удалить
+
+```{r}
+insurance_without_na_child_fix_s_s_r <- filter(insurance_without_na_child_fix_s_s_r, !(bmi>100 | age > 75))
+```
+
+### Сложные случаи выбросов
+
+Попробуйте найти:)
+
+```{r}
+ggplot(insurance_without_na_child_fix_s_s_r, aes(x = age, y=charges))+
+  geom_point()
+```
+
+Удалим его
+
+```{r}
+filter(insurance_without_na_child_fix_s_s_r, age>60 & charges < 10000)
+insurance_clean <- filter(insurance_without_na_child_fix_s_s_r, !(age>60 & charges < 10000))
+```
+
+Можно упроситить эти поиски
+
+```{r}
+plot(insurance_without_na_child_fix_s_s_r)
+```
+
+### Поиск взаимосвязей
+
+Мы почистили данные и можем двигаться дальше. Одна и целей разведочного анализа - выявить связи между переменными. Для описания наших данных можно использовать разные статистики
+
+```{r}
+library(psych)
+describe(insurance_clean)
+```
+
+Впечатляет, но для факторных переменных не очень подходит, для них расчёты получаются странными. Оставим только числовые переменные
+
+```{r}
+insurance_clean_num <- select(insurance_clean, age, bmi, children, charges)
+kable(describe(insurance_clean_num))
+```
+
+Мы получили численные описания наших данных, но мы так и не узнали ничего о взаимосвязях между переменными. Простейший способ узнать это базовая функция cor()
+
+```{r}
+cor(insurance_clean_num)
+```
+
+Есть более информативный аналог из пакета psych
+
+```{r}
+corr.test(insurance_clean_num)
+```
+
+age и bmi немного коррелируют с charges 
+
+!Но строго говоря, совсем необязательно, что возраст определяет стоимость! 
+
+Just for fun!
+<https://rationalnumbers.ru/?go=all/bezumnye-korrelyacii/&ysclid=lcu9eons8p556339890>
+
+Пожалуй, лучше всего совместить всё в один график
+
+```{r}
+pairs.panels(insurance_clean_num, stars = T)
+```
+
+### Категориальные переменные
+
+Сложнее выявить зависимости между категориальными переменными, потому что сложнее заметить тренд. Теперь отберём факторные переменные
+
+table() позволяет нам посчитать число наблюдений для каждой комбинации выбранных факторов
+
+```{r}
+insurance_clean_factor <- select(insurance_clean, -age, -bmi, -children, -charges)
+table(insurance_clean_factor$smoker,insurance_clean_factor$sex)
+```
+
+О том как проверить значимость различий мы поговорим на следующей лекции
+
+### Проверка гипотез
+
+Когда мы анализировали наш датасет целиком, smoker и charges показали довльно сильную корреляцию. Давайте проверим гипотезу о том, что цена страховки для курящих отличается от цены для некурящих. Выделим значения
+для каждой из двух групп, а затем сделаем Т-тест для двух выборок с разными дисперсиями.
+
+```{r}
+smoking <- filter(insurance_clean, smoker == "yes")$charges
+nonsmoking <- filter(insurance_clean, smoker == "no")$charges
+test_result <- t.test(smoking,nonsmoking)
+```
+
+На основании двухстороннего двухвыборочного Т-критерия Уэлча мы можем заключить, что стоимость страховки для курящих и некурящих статистически значимо различается (d.f. = `r test_result$parameter`, значение статистики `r test_result$statistic`, p value `r test_result$p.value`) при 5% уровне значимости.
+
+### Цитирование
+
+Обычно мы используем много разных библиотек и неплохо бы их было цитировать. Используя команду ниже, можно создать библиографию и затем цитировать пакеты.
+
+```{r}
+knitr::write_bib(c(.packages()), "packages.bib")
+```
+
+@R-knitr
