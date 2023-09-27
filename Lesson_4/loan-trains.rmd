@@ -1,0 +1,30 @@
+---
+title: "Loan-train Отчет"
+author: "Aleksei Sivtsev"
+date: "2023-09-25"
+bibliography: packages.bib
+output: 
+  html_document:
+    latex_engine : xelatex
+    df_print: default
+    highlight: zenburn
+    toc: TRUE
+    toc_depth: 3
+mainfont : NanumGothic    
+editor_options: 
+  markdown: 
+  wrap: 72
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Пропущенные
+
+```{r summary}
+lt <- (read.csv("loan-train.csv", sep=";"))
+summary(lt)
+```
+
+`r sum(is.na(lt))`
