@@ -1,0 +1,140 @@
+---
+title: "Project 1"
+author: "Aleksei Sivtsev"
+date: "2023-10-05"
+bibliography: packages.bib
+output: 
+  html_document:
+    latex_engine : xelatex
+    df_print: default
+    highlight: zenburn
+    toc: TRUE
+    toc_depth: 3
+mainfont : NanumGothic    
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r libraries}
+# install.packages("nortest")
+#library(nortest)
+library(dplyr)
+library(ggplot2)
+library(knitr)
+main_dir <- dirname(rstudioapi::getSourceEditorContext()$path) 
+setwd(main_dir)
+```
+### Обзор данных
+
+```{r data import}
+day <- read.csv('day.csv', na.strings=c("","NA"))
+str(day)
+```
+
+Какие переменные у нас есть: 
+
+instant: индекс записи
+
+dteday: дата
+
+season: сезон (1:весна, 2:лето, 3:осень, 4:зима)
+
+yr: год (0: 2011, 1:2012)
+
+mnth: месяц
+
+holiday: праздничный день
+
+weekday: день недели
+
+workingday: рабочий день, если день не выходной и не праздничный, то 1, в ином случае 0
+
+weathersit: 
+
+- 1: Ясно, малооблачно, переменная облачность
+
+- 2: Туман + обалчно, туман + облачно с прояснениями, туман + облачно с прояснениями, туман + малооблачно, туман
+
+- 3: небольшой снег, небольшой дождь + гроза + облачно с прояснениями, небольшой дождь + облачно с прояснениями
+
+- 4: Ливень + дождь со снегом + гроза + туман, снег + плотный туман (мгла)
+
+temp: Нормализованная температура в градусах Цельсия. Значения делятся на 41 (макс.)
+
+atemp: Нормализованная температура по ощущениям в градусах Цельсия. Значения делятся на 50 (макс.)
+
+hum: Нормализованная влажность. Значения разделены на 100 (макс.)
+
+windspeed: Нормализованная скорость ветра. Значения разделены на 67 (макс.)
+
+casual: количество случайных пользователей
+
+registered: количество зарегестрированных пользователей 
+
+cnt: количество взятых напрокат велосипедов, включая как случайные, так и зарегистрированные
+
+### Работа с пропущенными значениями
+
+Начнём с того, что проверим сколько у нас пропущенных значений. В наших данных `r sum(is.na(day))` пропущенных значений
+
+Исключим пропущенные значения из наших данных:
+```{r}
+day_without_na <- na.omit(day)
+summary(day_without_na)
+```
+
+### Категориальные величины
+
+Конвертируем категориальными величинами в фактор:
+
+```{r}
+day_without_na$season <- as.factor(day_without_na$season)
+day_without_na$weathersit <- as.factor(day_without_na$weathersit)
+summary(day_without_na)
+```
+
+### Выбросы
+
+```{r}
+ggplot(day_without_na, aes(x=hum))+
+  geom_density()
+```
+Виден выброс в значениях влажности, значение равно 0.
+Отфильтруем значение влажности, равное 0.
+
+```{r}
+day_without_na <- filter(day_without_na, hum > 0.001)
+```
+
+```{r}
+ggplot(day_without_na, aes(x=hum))+
+  geom_density()
+```
+
+```{r}
+ggplot(day_without_na, aes(x=windspeed))+
+  geom_density()
+```
+Так же в значениях скорости ветра есть значения, дающие хвост, но это реальные значения замеренные в ветренные дни.
+
+```{r}
+ggplot(day_without_na, aes(x=cnt))+
+  geom_density()
+```
+В Washington DC была подготовка к урагану Sandy и это видно по количеству пользователей в этот день, это ни как не отражается в данных, но дает небольшой выброс. Уберем из данных.
+
+```{r}
+day_without_na <- filter(day_without_na, cnt > 30)
+```
+
+```{r}
+ggplot(day_without_na, aes(x=cnt))+
+  geom_density()
+```
+
+@R-knitr
